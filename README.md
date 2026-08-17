@@ -12,9 +12,9 @@ Agent Guard RS 是一个使用 Rust 编写的本地安全守卫工具。它通�
 ## 仓库结构
 
 ```text
-ai-agent-guard/
+AI-Agent-Guard/
 ├── README.md            # 本文件
-├── docs/                # 使用手册、技术架构、路线图
+├── docs/                # 使用手册、技术架构
 ├── pic/                 # 文档截图
 └── agent-guard-rs/      # Rust 实现（Cargo 工程）
     ├── src/             # 核心模块与各 Agent 适配器
@@ -245,7 +245,6 @@ Agent Normalizer → CanonicalEvent → Policy Engine → Decision
 - [使用手册（中文）](docs/USAGE.md)
 - [技术架构（中文）](docs/ARCHITECTURE.md)
 - [策略预设](agent-guard-rs/policies/README.md)
-- [路线图](docs/PLAN.md)
 
 ## 许可
 
