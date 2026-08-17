@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-guard.dev/schemas/policy.schema.json",
+  "title": "Agent Guard policy",
+  "type": "object",
+  "required": ["version", "rules"],
+  "properties": {
+    "version": { "const": "1" },
+    "settings": {
+      "type": "object",
+      "properties": { "default_mode": { "enum": ["disabled", "observe", "enforce"] } },
+      "additionalProperties": false
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "required": ["id", "title", "severity", "when", "action", "message"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "enabled": { "type": "boolean" },
+        "mode": { "enum": ["disabled", "observe", "enforce"] },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "events": {
+          "type": "array",
+          "items": { "enum": ["user_prompt", "pre_tool_use", "post_tool_use", "permission_request", "session_start", "session_end", "transcript_event", "unknown"] }
+        },
+        "agents": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "exclude_agents": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "when": { "$ref": "#/$defs/expression" },
+        "unless": { "$ref": "#/$defs/expression" },
+        "action": { "enum": ["allow", "flag", "deny"] },
+        "message": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "expression": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["all"],
+          "properties": { "all": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/expression" } } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["any"],
+          "properties": { "any": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/expression" } } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["not"],
+          "properties": { "not": { "$ref": "#/$defs/expression" } },
+          "additionalProperties": false
+        },
+        { "$ref": "#/$defs/condition" }
+      ]
+    },
+    "condition": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "eq": {},
+        "neq": {},
+        "in": { "type": "array" },
+        "not_in": { "type": "array" },
+        "contains": { "type": "string" },
+        "starts_with": { "type": "string" },
+        "glob": { "type": "string" },
+        "regex": { "type": "string" },
+        "exists": { "type": "boolean" }
+      },
+      "minProperties": 2,
+      "maxProperties": 2,
+      "additionalProperties": false
+    }
+  }
+}

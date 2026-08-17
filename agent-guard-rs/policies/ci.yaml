@@ -1,0 +1,82 @@
+version: "1"
+settings:
+  default_mode: enforce
+
+rules:
+  - id: ci-shell-allowlist
+    title: CI shell command allowlist
+    description: Allows common build and test commands without permitting command chaining.
+    tags: [ci, shell, allowlist]
+    severity: high
+    events: [pre_tool_use]
+    when:
+      field: tool.name
+      in: [Bash, bash, Shell, shell, execute, run_shell_command]
+    unless:
+      field: tool.input.command
+      regex: '^\s*(cargo\s+(build|check|test|clippy|fmt)(\s+[-\w./:=,@]+)*|(npm|pnpm|yarn)\s+(test|lint|build)(\s+[-\w./:=,@]+)*|go\s+(build|test|vet)(\s+[-\w./:=,@]+)*|pytest(\s+[-\w./:=,@]+)*)\s*$'
+    action: deny
+    message: The command is outside the CI build and test allowlist.
+
+  - id: ci-network-transfer
+    title: CI network transfer
+    tags: [ci, network, supply-chain]
+    severity: high
+    events: [pre_tool_use]
+    when:
+      field: tool.input.command
+      regex: '(^|[;&|]\s*)(curl|wget|scp|sftp|rsync|nc|ncat|socat)\b'
+    action: deny
+    message: Ad hoc network transfer is blocked during CI Agent execution.
+
+  - id: ci-secret-access
+    title: CI secret material access
+    tags: [ci, credentials]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      any:
+        - field: tool.input.file_path
+          regex: '(^|/)(\.env($|\.)|\.ssh/|\.aws/|\.kube/|id_rsa$|id_ed25519$)'
+        - field: tool.input.path
+          regex: '(^|/)(\.env($|\.)|\.ssh/|\.aws/|\.kube/|id_rsa$|id_ed25519$)'
+        - field: tool.input.command
+          regex: '(\.env\b|\.ssh/|\.aws/|\.kube/|id_(rsa|ed25519)\b)'
+    action: deny
+    message: CI Agents cannot read secret material from the workspace or home directory.
+
+  - id: ci-publish
+    title: CI artifact or package publication
+    tags: [ci, publish, supply-chain]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      field: tool.input.command
+      regex: '(^|[;&|]\s*)(git\s+push|npm\s+publish|pnpm\s+publish|yarn\s+npm\s+publish|cargo\s+publish|twine\s+upload|docker\s+push)\b'
+    action: deny
+    message: Publication must occur in a separately authorized release job.
+
+  - id: ci-policy-tampering
+    title: CI policy tampering
+    tags: [ci, agent-guard, policy-integrity]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      any:
+        - field: tool.input.file_path
+          glob: "*/.agent-guard/*"
+        - field: tool.input.command
+          regex: '(\.agent-guard/|agent-guard.*policy)'
+    action: deny
+    message: CI Agents cannot modify their own security policy.
+
+  - id: ci-unknown-agent-event
+    title: Unknown CI Agent event
+    tags: [ci, compatibility, fail-closed]
+    agents: [claude, codebuddy, codex, cursor, gemini, kiro, opencode, qoder, qwen]
+    severity: high
+    when:
+      field: event.kind
+      eq: unknown
+    action: deny
+    message: CI policy rejects unknown events from supported Agent integrations.

@@ -1,0 +1,28 @@
+[package]
+name = "agent-guard"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Local policy enforcement and audit for AI coding agents"
+license = "Apache-2.0"
+
+[dependencies]
+anyhow = "=1.0.86"
+chrono = { version = "=0.4.38", default-features = false, features = ["clock", "serde"] }
+clap = { version = "=4.5.4", features = ["derive"] }
+directories = "=5.0.1"
+globset = "=0.4.14"
+# Keep fresh resolution compatible with the declared Rust 1.75 MSRV.
+indexmap = "=2.2.6"
+regex = "=1.10.4"
+rusqlite = { version = "=0.31.0", features = ["bundled"] }
+serde = { version = "=1.0.203", features = ["derive"] }
+serde_json = "=1.0.117"
+serde_yaml = "=0.9.34"
+sha2 = "=0.10.8"
+uuid = { version = "=1.8.0", features = ["v4", "serde"] }
+
+[dev-dependencies]
+assert_cmd = "=2.0.14"
+predicates = "=3.1.0"
+tempfile = "=3.10.1"

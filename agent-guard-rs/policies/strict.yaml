@@ -1,0 +1,114 @@
+version: "1"
+settings:
+  default_mode: enforce
+
+rules:
+  - id: shell-allowlist
+    title: Shell command allowlist
+    description: Permits a small set of read-only inspection commands and blocks other shell use.
+    tags: [shell, allowlist]
+    severity: high
+    events: [pre_tool_use]
+    when:
+      field: tool.name
+      in: [Bash, bash, Shell, shell, execute, run_shell_command]
+    unless:
+      field: tool.input.command
+      regex: '^\s*(pwd|git\s+(status|diff|log|show)(\s+[-\w./:=,@]+)*|cargo\s+(check|test|clippy|fmt)(\s+[-\w./:=,@]+)*)\s*$'
+    action: deny
+    message: This shell command is not on the strict policy allowlist.
+
+  - id: sensitive-file-access
+    title: Sensitive credential file access
+    tags: [credentials, filesystem]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      any:
+        - field: tool.input.file_path
+          regex: '(^|/)(\.env($|\.)|\.ssh/|\.aws/|\.kube/|\.docker/config\.json$|\.npmrc$|id_rsa$|id_ed25519$)'
+        - field: tool.input.path
+          regex: '(^|/)(\.env($|\.)|\.ssh/|\.aws/|\.kube/|\.docker/config\.json$|\.npmrc$|id_rsa$|id_ed25519$)'
+        - field: tool.input.command
+          regex: '(\.env\b|\.ssh/|\.aws/|\.kube/|\.docker/config\.json|\.npmrc\b|id_(rsa|ed25519)\b)'
+    action: deny
+    message: Strict policy blocks access to credential-bearing files.
+
+  - id: network-transfer
+    title: Unapproved network transfer
+    tags: [network, exfiltration]
+    severity: high
+    events: [pre_tool_use]
+    when:
+      field: tool.input.command
+      regex: '(^|[;&|]\s*)(curl|wget|scp|sftp|rsync|nc|ncat|socat)\b'
+    action: deny
+    message: Strict policy blocks shell-based network transfer.
+
+  - id: destructive-git
+    title: Destructive or remote Git operation
+    tags: [git, destructive]
+    severity: high
+    events: [pre_tool_use]
+    when:
+      field: tool.input.command
+      regex: '(^|[;&|]\s*)git\s+(reset\s+--hard|clean\s+-[^\s]*f|push\b|rebase\b|branch\s+-D\b)'
+    action: deny
+    message: Strict policy blocks destructive and remote Git operations.
+
+  - id: privilege-escalation
+    title: Privilege escalation
+    tags: [privilege, system]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      field: tool.input.command
+      regex: '(^|[;&|]\s*)(sudo|su|doas|pkexec)\b'
+    action: deny
+    message: Strict policy blocks privilege escalation.
+
+  - id: package-publish
+    title: Package publication
+    tags: [supply-chain, publish]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      field: tool.input.command
+      regex: '(^|[;&|]\s*)(npm|pnpm|yarn|cargo|twine|gem)\s+publish\b'
+    action: deny
+    message: Package publication is blocked in strict workspaces.
+
+  - id: infrastructure-mutation
+    title: Infrastructure mutation
+    tags: [cloud, infrastructure]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      field: tool.input.command
+      regex: '(^|[;&|]\s*)(terraform\s+(apply|destroy|import)|kubectl\s+(apply|create|delete|edit|patch|replace|scale)|helm\s+(install|upgrade|uninstall)|aws\s+[^\n]*(create|delete|put|update|terminate)-)'
+    action: deny
+    message: Infrastructure mutations are blocked in strict workspaces.
+
+  - id: agent-guard-tampering
+    title: Agent Guard policy tampering
+    tags: [agent-guard, policy-integrity]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      any:
+        - field: tool.input.file_path
+          glob: "*/.agent-guard/*"
+        - field: tool.input.command
+          regex: '(\.agent-guard/|agent-guard.*policy)'
+    action: deny
+    message: Agent Guard policy and state cannot be changed by an Agent tool call.
+
+  - id: unknown-event
+    title: Unknown event shape
+    tags: [compatibility, fail-closed]
+    severity: high
+    when:
+      field: event.kind
+      eq: unknown
+    action: deny
+    message: Strict policy rejects unrecognized event shapes.

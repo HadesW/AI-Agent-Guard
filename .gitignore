@@ -1,0 +1,19 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Agent Guard local state
+*.db
+*.db-shm
+*.db-wal
+audit.db
+
+# Node / OpenCode plugin
+node_modules/
+bun.lock
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

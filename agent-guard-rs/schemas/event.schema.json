@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-guard.dev/schemas/event.schema.json",
+  "title": "Agent Guard canonical event",
+  "type": "object",
+  "required": ["schema_version", "event_id", "timestamp", "agent", "session", "event", "source_event_type"],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "event_id": { "type": "string", "format": "uuid" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "agent": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "version": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "session": {
+      "type": "object",
+      "required": ["id"],
+      "properties": { "id": { "type": "string", "minLength": 1 } },
+      "additionalProperties": false
+    },
+    "event": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["user_prompt", "pre_tool_use", "post_tool_use", "permission_request", "session_start", "session_end", "transcript_event", "unknown"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "tool": {
+      "type": ["object", "null"],
+      "required": ["name", "input"],
+      "properties": {
+        "name": { "type": "string" },
+        "input": {},
+        "output": {}
+      },
+      "additionalProperties": false
+    },
+    "prompt": { "type": ["string", "null"] },
+    "cwd": { "type": ["string", "null"] },
+    "source_event_type": { "type": "string" }
+  },
+  "additionalProperties": false
+}

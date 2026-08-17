@@ -1,0 +1,49 @@
+version: "1"
+settings:
+  default_mode: observe
+
+rules:
+  - id: destructive-root-delete
+    title: Destructive recursive deletion
+    description: Detects recursive forced deletion aimed at a filesystem root or home directory.
+    tags: [filesystem, destructive]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      all:
+        - field: tool.name
+          in: [Bash, bash, Shell, shell, execute, run_shell_command]
+        - field: tool.input.command
+          regex: '(^|[;&|]\s*|\s)(sudo\s+)?rm\s+(-[^\s]*r[^\s]*f|-r\s+-f|-f\s+-r)\s+(/|~)(\s|$)'
+    action: deny
+    message: "Recursive deletion of a root or home path requires explicit human review."
+
+  - id: download-and-execute
+    title: Download piped directly to a shell
+    description: Requires downloaded scripts to be inspected before execution.
+    tags: [network, execution, supply-chain]
+    severity: high
+    events: [pre_tool_use]
+    when:
+      all:
+        - field: tool.name
+          in: [Bash, bash, Shell, shell, execute, run_shell_command]
+        - field: tool.input.command
+          regex: '(curl|wget)[^|\n]*\|\s*(ba)?sh\b'
+    action: deny
+    message: "Downloaded content must be inspected before it is executed."
+
+  - id: agent-guard-tampering
+    title: Agent Guard configuration tampering
+    description: Protects local policy and state from modification through tool calls.
+    tags: [agent-guard, policy-integrity]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      any:
+        - field: tool.input.file_path
+          glob: "*/.agent-guard/*"
+        - field: tool.input.command
+          regex: '(rm|mv|truncate|sed)[^\n]*(\.agent-guard|agent-guard.*policy)'
+    action: deny
+    message: "Modification of Agent Guard policy or state was flagged."

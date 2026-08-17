@@ -1,0 +1,141 @@
+version: "1"
+settings:
+  default_mode: observe
+
+rules:
+  - id: destructive-root-delete
+    title: Destructive recursive deletion
+    description: Blocks recursive forced deletion aimed at a filesystem root or home directory.
+    tags: [filesystem, destructive]
+    mode: enforce
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      all:
+        - field: tool.name
+          in: [Bash, bash, Shell, shell, execute, run_shell_command]
+        - field: tool.input.command
+          regex: '(^|[;&|]\s*|\s)(sudo\s+)?rm\s+(-[^\s]*r[^\s]*f|-r\s+-f|-f\s+-r)\s+(/|~)(\s|$)'
+    action: deny
+    message: Recursive deletion of a root or home path is blocked.
+
+  - id: download-and-execute
+    title: Download piped directly to a shell
+    description: Blocks execution of uninspected remote content.
+    tags: [network, execution, supply-chain]
+    mode: enforce
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      all:
+        - field: tool.name
+          in: [Bash, bash, Shell, shell, execute, run_shell_command]
+        - field: tool.input.command
+          regex: '(curl|wget)[^|\n]*\|\s*(ba|z|k)?sh\b'
+    action: deny
+    message: Downloaded content must be inspected before it is executed.
+
+  - id: agent-guard-tampering
+    title: Agent Guard policy tampering
+    tags: [agent-guard, policy-integrity]
+    mode: enforce
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      any:
+        - field: tool.input.file_path
+          glob: "*/.agent-guard/*"
+        - field: tool.input.command
+          regex: '(rm|mv|truncate|sed|perl)[^\n]*(\.agent-guard|agent-guard.*policy)'
+    action: deny
+    message: Agent Guard policy and state cannot be changed by an Agent tool call.
+
+  - id: destructive-git
+    title: Destructive Git operation
+    description: Flags history rewriting, forced pushes, and aggressive cleanup.
+    tags: [git, destructive]
+    severity: high
+    events: [pre_tool_use]
+    when:
+      all:
+        - field: tool.name
+          in: [Bash, bash, Shell, shell, execute, run_shell_command]
+        - field: tool.input.command
+          regex: '(^|[;&|]\s*)(git\s+(reset\s+--hard|clean\s+-[^\s]*f|push\s+[^\n]*(--force|-f\b)|rebase\s+--onto))'
+    action: deny
+    message: Destructive Git operations require review.
+
+  - id: sensitive-file-access
+    title: Sensitive credential file access
+    description: Flags reads or writes targeting common local credential stores.
+    tags: [credentials, filesystem]
+    severity: high
+    events: [pre_tool_use]
+    when:
+      any:
+        - field: tool.input.file_path
+          regex: '(^|/)(\.env($|\.)|\.ssh/|\.aws/credentials$|\.kube/config$|\.docker/config\.json$|\.npmrc$)'
+        - field: tool.input.path
+          regex: '(^|/)(\.env($|\.)|\.ssh/|\.aws/credentials$|\.kube/config$|\.docker/config\.json$|\.npmrc$)'
+        - field: tool.input.command
+          regex: '(^|\s)(cat|less|more|head|tail|cp|mv|rm|sed)\s+[^\n]*(\.env\b|\.ssh/|\.aws/credentials|\.kube/config|\.npmrc\b)'
+    action: flag
+    message: Access to a credential-bearing file was detected.
+
+  - id: world-writable-permissions
+    title: World-writable permissions
+    tags: [filesystem, permissions]
+    severity: medium
+    events: [pre_tool_use]
+    when:
+      all:
+        - field: tool.name
+          in: [Bash, bash, Shell, shell, execute, run_shell_command]
+        - field: tool.input.command
+          regex: '(^|[;&|]\s*)chmod\s+(-R\s+)?(777|a\+w|o\+w)\b'
+    action: flag
+    message: World-writable permissions should be narrowly scoped and reviewed.
+
+  - id: privileged-container
+    title: Privileged container execution
+    tags: [container, privilege]
+    severity: high
+    events: [pre_tool_use]
+    when:
+      field: tool.input.command
+      regex: '(^|[;&|]\s*)(docker|podman)\s+run\s+[^\n]*(--privileged|--pid[= ]host|--network[= ]host|/var/run/docker\.sock)'
+    action: deny
+    message: Privileged container execution requires review.
+
+  - id: encoded-shell-payload
+    title: Encoded shell payload
+    tags: [execution, obfuscation]
+    severity: high
+    events: [pre_tool_use]
+    when:
+      field: tool.input.command
+      regex: '(base64\s+(-d|--decode)|python[^\n]*-c|perl\s+-e)[^\n]*(\||exec|system\(|subprocess|os\.)'
+    action: flag
+    message: Encoded or dynamically constructed shell execution was detected.
+
+  - id: infrastructure-destruction
+    title: Infrastructure destruction
+    tags: [cloud, infrastructure, destructive]
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      field: tool.input.command
+      regex: '(^|[;&|]\s*)(terraform\s+destroy|kubectl\s+delete\s+(namespace|ns)\b|helm\s+uninstall\b|aws\s+[^\n]*(delete|terminate)-)'
+    action: deny
+    message: Infrastructure deletion requires explicit review.
+
+  - id: unknown-pre-tool-event
+    title: Unknown pre-tool event shape
+    description: Surfaces adapter drift instead of silently ignoring an unrecognized event.
+    tags: [compatibility, visibility]
+    severity: medium
+    when:
+      field: event.kind
+      eq: unknown
+    action: flag
+    message: An event from an unrecognized Agent integration was observed.

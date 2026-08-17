@@ -1,0 +1,86 @@
+version: "1"
+settings:
+  default_mode: observe
+
+rules:
+  - id: dlp-download-and-execute
+    title: Download piped directly to a shell
+    description: Blocks curl/wget output being executed without inspection.
+    tags: [dlp, network, execution, supply-chain]
+    mode: enforce
+    severity: high
+    events: [pre_tool_use]
+    when:
+      all:
+        - field: tool.name
+          in: [bash, Bash, shell, Shell, execute, run_shell_command]
+        - field: tool.input.command
+          regex: '(curl|wget)[^|\n]*\|\s*(ba)?sh\b'
+    action: deny
+    message: "DLP: downloaded content must be inspected before it is executed."
+
+  - id: dlp-sensitive-file-exfil
+    title: Sensitive file sent to an external host
+    description: Blocks credentials or system files being uploaded through a network tool.
+    tags: [dlp, exfiltration, credentials]
+    mode: enforce
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      all:
+        - field: tool.name
+          in: [bash, Bash, shell, Shell, execute, run_shell_command]
+        - field: tool.input.command
+          regex: '(curl|wget|nc|socat|scp|ftp|sftp)\b[^\n]*(\b(curl|wget|nc|socat|scp|ftp|sftp)\b[^\n]*)?(@|-|--data|--data-binary|-F|--upload-file|-d|--post-file)'
+        - field: tool.input.command
+          regex: '(/etc/passwd|/etc/shadow|/etc/sudoers|\.ssh/|id_rsa|id_ed25519|\.aws/credentials|\.env|\.git-credentials|\.npmrc|\.pgpass|secrets?|passwords?|token|api[_-]?key|credential)'
+    action: deny
+    message: "DLP: uploading sensitive files or credentials to an external host is blocked."
+
+  - id: dlp-secret-in-command
+    title: Credential literal in an outbound command
+    description: Blocks command lines that embed plaintext credentials in network requests.
+    tags: [dlp, credentials, exfiltration]
+    mode: enforce
+    severity: critical
+    events: [pre_tool_use]
+    when:
+      all:
+        - field: tool.name
+          in: [bash, Bash, shell, Shell, execute, run_shell_command]
+        - field: tool.input.command
+          regex: '(curl|wget|nc|socat|scp|ftp|sftp)\b[^\n]*(passwd|password|secret|token|api[_-]?key|bearer)\s*=?[^\s;|&]+'
+    action: deny
+    message: "DLP: plaintext credentials in an outbound network command are blocked."
+
+  - id: dlp-upload-file
+    title: File upload to an external host
+    description: Blocks file uploads to hosts outside the local trust boundary.
+    tags: [dlp, exfiltration]
+    mode: enforce
+    severity: high
+    events: [pre_tool_use]
+    when:
+      all:
+        - field: tool.name
+          in: [bash, Bash, shell, Shell, execute, run_shell_command]
+        - field: tool.input.command
+          regex: '(curl|wget)\b[^\n]*(-F\s|--form\s|--upload-file|-T\s|--data-binary\s*@|--data\s*@|-d\s*@|--post-file)'
+    action: deny
+    message: "DLP: uploading local files to an external host is blocked."
+
+  - id: agent-guard-tampering
+    title: Agent Guard configuration tampering
+    description: Protects local policy and state from modification through tool calls.
+    tags: [agent-guard, policy-integrity]
+    severity: critical
+    events: [pre_tool_use]
+    mode: enforce
+    when:
+      any:
+        - field: tool.input.file_path
+          glob: "*/.agent-guard/*"
+        - field: tool.input.command
+          regex: '(rm|mv|truncate|sed)[^\n]*(\.agent-guard|agent-guard.*policy)'
+    action: deny
+    message: "Modification of Agent Guard policy or state is blocked."
